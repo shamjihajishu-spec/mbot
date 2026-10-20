@@ -44,19 +44,20 @@ app.post('/api/webhook', async (req, res) => {
           // Call Gemini API directly via REST (using gemini-2.5-flash)
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
           
+          console.log("Calling Gemini API...");
           const geminiResponse = await axios.post(geminiUrl, {
             contents: [{ parts: [{ text: messageText }] }]
           });
 
           // Extract response text safely
           const botReply = geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || "Hello! I received your message.";
-          console.log(`Gemini response generated successfully.`);
+          console.log(`Gemini response generated: ${botReply}`);
 
           // Send back to Messenger user
           await sendMessengerMessage(sender_psid, botReply);
 
         } catch (error) {
-          console.error('Error generating AI response:', error.response ? error.response.data : error.message);
+          console.error('CRITICAL ERROR in AI or Send process:', error.response ? JSON.stringify(error.response.data) : error.message);
         }
       }
     }
@@ -73,13 +74,14 @@ async function sendMessengerMessage(sender_psid, responseText) {
   };
 
   try {
-    await axios.post(
+    console.log("Attempting to send message to Facebook Messenger API...");
+    const fbResponse = await axios.post(
       `https://graph.facebook.com/v19.0/me/messages?access_token=${process.env.PAGE_ACCESS_TOKEN}`,
       request_body
     );
-    console.log("Reply sent to Messenger successfully!");
+    console.log("Reply sent to Messenger successfully! Response:", fbResponse.data);
   } catch (error) {
-    console.error('Messenger API Error Details:', error.response ? error.response.data : error.message);
+    console.error('Messenger API Error Details:', error.response ? JSON.stringify(error.response.data) : error.message);
   }
 }
 
