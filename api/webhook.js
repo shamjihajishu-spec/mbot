@@ -37,8 +37,8 @@ app.post('/api/webhook', async (req, res) => {
 
           console.log(`Received message from ${sender_psid}: ${messageText}`);
 
-          // Call Gemini API directly via REST
-          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          // Call Gemini API using gemini-2.5-flash (Supported by current API key)
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
           
           console.log("Calling Gemini API...");
           
@@ -49,13 +49,12 @@ app.post('/api/webhook', async (req, res) => {
             }, { timeout: 30000 });
           } catch (geminiErr) {
             console.error("GEMINI API FAILED:", geminiErr.response ? JSON.stringify(geminiErr.response.data) : geminiErr.message);
-            // Even if Gemini fails, reply to Meta so webhook doesn't hang
             return res.status(200).send('EVENT_RECEIVED');
           }
 
           // Extract response text safely
           const botReply = geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || "Hello! I received your message.";
-          console.log(`Gemini response generated successfully.`);
+          console.log(`Gemini response generated successfully: ${botReply}`);
 
           // Send back to Messenger user via Meta Graph API
           await axios.post(
@@ -70,7 +69,6 @@ app.post('/api/webhook', async (req, res) => {
         }
       }
       
-      // Send 200 OK to Meta after everything is successfully done
       return res.status(200).send('EVENT_RECEIVED');
 
     } catch (error) {
