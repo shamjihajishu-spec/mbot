@@ -1,12 +1,8 @@
 import express from 'express';
 import axios from 'axios';
-import { GoogleGenAI } from '@google/genai';
 
 const app = express();
 app.use(express.json());
-
-// Initialize Gemini SDK
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // 1. Webhook Verification (GET) - Meta Messenger Setup
 app.get('/api/webhook', (req, res) => {
@@ -45,20 +41,22 @@ app.post('/api/webhook', async (req, res) => {
         console.log(`Received message from ${sender_psid}: ${messageText}`);
 
         try {
-          // Generate AI response using Gemini 2.5 Flash
-          const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: messageText,
+          // Call Gemini API directly via REST (using gemini-2.5-flash)
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          
+          const geminiResponse = await axios.post(geminiUrl, {
+            contents: [{ parts: [{ text: messageText }] }]
           });
 
-          const botReply = response.text || "Hello! I received your message.";
+          // Extract response text safely
+          const botReply = geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || "Hello! I received your message.";
           console.log(`Gemini response generated successfully.`);
 
           // Send back to Messenger user
           await sendMessengerMessage(sender_psid, botReply);
 
         } catch (error) {
-          console.error('Error generating AI response:', error.message);
+          console.error('Error generating AI response:', error.response ? error.response.data : error.message);
         }
       }
     }
