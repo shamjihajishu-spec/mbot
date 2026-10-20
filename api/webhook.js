@@ -37,8 +37,8 @@ app.post('/api/webhook', async (req, res) => {
 
           console.log(`Received message from ${sender_psid}: ${messageText}`);
 
-          // Call Gemini API using gemini-2.5-flash (Supported by current API key)
-          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          // Call Gemini API using the correct and latest gemini-3.8-flash model
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
           
           console.log("Calling Gemini API...");
           
