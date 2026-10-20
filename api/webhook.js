@@ -40,8 +40,8 @@ app.post('/api/webhook', async (req, res) => {
 
           console.log(`Received message from ${sender_psid}: ${messageText}`);
 
-          // Call Gemini API directly via REST with a 10-second timeout
-          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          // Call Gemini API directly via REST with timeout increased to 1 minute (60000ms)
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
           
           console.log("Calling Gemini API...");
           
@@ -49,7 +49,7 @@ app.post('/api/webhook', async (req, res) => {
           try {
             geminiResponse = await axios.post(geminiUrl, {
               contents: [{ parts: [{ text: messageText }] }]
-            }, { timeout: 10000 }); // 10 seconds timeout
+            }, { timeout: 60000 }); // 1 Minute timeout
           } catch (geminiErr) {
             console.error("GEMINI API FAILED:", geminiErr.response ? JSON.stringify(geminiErr.response.data) : geminiErr.message);
             return;
