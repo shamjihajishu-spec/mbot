@@ -1,63 +1,63 @@
-const { GoogleGenAI } = require("@google/genai");
-const axios = require('axios');
-const express = require('express');
-
-// আপনার বিজনেসের বা ব্র্যান্ডের সিস্টেম প্রম্পট
-const SYSTEM_PROMPT = "You are a helpful customer support assistant for Glama.";
-
-// Gemini API ইনিশিয়ালাইজেশন
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import express from 'express';
+import axios from 'axios';
+import { GoogleGenAI } from '@google/genai';
 
 const app = express();
 app.use(express.json());
 
-// 1. Webhook Verification (GET) - মেটা ভেরিফিকেশনের জন্য
+// Initialize Gemini (using the new SDK)
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Webhook Verification (GET)
 app.get('/api/webhook', (req, res) => {
   const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
-
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  console.log("GET Webhook Hit Received!");
-  console.log("Mode:", mode);
-  console.log("Token received from Meta:", token);
-
   if (mode && token) {
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('WEBHOOK_VERIFIED Successfully');
-      return res.status(200).send(challenge);
+      console.log('WEBHOOK_VERIFIED');
+      res.status(200).send(challenge);
     } else {
-      console.log('Token mismatch!');
-      return res.status(403).send('Forbidden: Token mismatch');
+      res.sendStatus(403);
     }
-  } else {
-    console.log('Missing mode or token!');
-    return res.status(400).send('Bad Request: Missing parameters');
   }
 });
 
-// 2. Incoming Messages Webhook (POST) - মেসেঞ্জারের ইনকামিং মেসেজের জন্য
+// Handle Incoming Messages (POST)
 app.post('/api/webhook', async (req, res) => {
   const body = req.body;
 
   if (body.object === 'page') {
+    // Return a '200 OK' to all requests within 3 seconds
     res.status(200).send('EVENT_RECEIVED');
 
     for (const entry of body.entry) {
-      if (!entry.messaging) continue;
+      const webhook_event = entry.messaging ? entry.messaging[0] : null;
       
-      const webhook_event = entry.messaging[0];
-      const sender_psid = webhook_event.sender.id;
+      if (webhook_event && webhook_event.message && webhook_event.message.text) {
+        const sender_psid = webhook_event.sender.id;
+        const messageText = webhook_event.message.text;
 
-      if (webhook_event.message && webhook_event.message.text) {
-        const userMessage = webhook_event.message.text;
+        console.log(`Received message from ${sender_psid}: ${messageText}`);
 
-        // জেমিনাই থেকে উত্তর আনা
-        const aiReply = await getGeminiReply(userMessage);
+        try {
+          // Call Gemini API
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: messageText,
+          });
 
-        // কাস্টমারকে মেসেঞ্জারে উত্তর পাঠানো
-        await sendMessengerMessage(sender_psid, aiReply);
+          const botReply = response.text || "I received your message!";
+          console.log(`Gemini response: ${botReply}`);
+
+          // Send back to Messenger
+          await sendMessengerMessage(sender_psid, botReply);
+
+        } catch (error) {
+          console.error('Error generating AI response or sending message:', error.message);
+        }
       }
     }
   } else {
@@ -65,24 +65,7 @@ app.post('/api/webhook', async (req, res) => {
   }
 });
 
-// Gemini API Call Function
-async function getGeminiReply(userMessage) {
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: [
-        { role: 'user', parts: [{ text: `${SYSTEM_PROMPT}\n\nCustomer Message: "${userMessage}"` }] }
-      ]
-    });
-    
-    return response.text;
-  } catch (error) {
-    console.error('Gemini API Error:', error);
-    return 'ধন্যবাদ আপনার মেসেজের জন্য। আমাদের প্রতিনিধি খুব দ্রুতই আপনার সাথে যোগাযোগ করবে।';
-  }
-}
-
-// Send Reply Back to Messenger API
+// Function to send message to Messenger API
 async function sendMessengerMessage(sender_psid, responseText) {
   const request_body = {
     recipient: { id: sender_psid },
@@ -90,13 +73,14 @@ async function sendMessengerMessage(sender_psid, responseText) {
   };
 
   try {
-    await axios.post(
+    const fbResponse = await axios.post(
       `https://graph.facebook.com/v19.0/me/messages?access_token=${process.env.PAGE_ACCESS_TOKEN}`,
       request_body
     );
+    console.log("Message sent to Messenger successfully!", fbResponse.data);
   } catch (error) {
-    console.error('Messenger Send Error:', error.response ? error.response.data : error.message);
+    console.error('Messenger API Error Details:', error.response ? error.response.data : error.message);
   }
 }
 
-module.exports = app;
+export default app;
