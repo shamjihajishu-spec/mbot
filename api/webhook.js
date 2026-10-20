@@ -27,9 +27,6 @@ app.post('/api/webhook', async (req, res) => {
   const body = req.body;
 
   if (body.object === 'page') {
-    // Immediately respond with 200 OK to prevent Meta webhook timeout
-    res.status(200).send('EVENT_RECEIVED');
-
     try {
       for (const entry of body.entry) {
         const webhook_event = entry.messaging ? entry.messaging[0] : null;
@@ -40,7 +37,7 @@ app.post('/api/webhook', async (req, res) => {
 
           console.log(`Received message from ${sender_psid}: ${messageText}`);
 
-          // Call Gemini API directly via REST with timeout increased to 1 minute (60000ms)
+          // Call Gemini API directly via REST
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
           
           console.log("Calling Gemini API...");
@@ -49,10 +46,11 @@ app.post('/api/webhook', async (req, res) => {
           try {
             geminiResponse = await axios.post(geminiUrl, {
               contents: [{ parts: [{ text: messageText }] }]
-            }, { timeout: 60000 }); // 1 Minute timeout
+            }, { timeout: 30000 });
           } catch (geminiErr) {
             console.error("GEMINI API FAILED:", geminiErr.response ? JSON.stringify(geminiErr.response.data) : geminiErr.message);
-            return;
+            // Even if Gemini fails, reply to Meta so webhook doesn't hang
+            return res.status(200).send('EVENT_RECEIVED');
           }
 
           // Extract response text safely
@@ -71,11 +69,16 @@ app.post('/api/webhook', async (req, res) => {
           console.log("Reply sent to Messenger successfully!");
         }
       }
+      
+      // Send 200 OK to Meta after everything is successfully done
+      return res.status(200).send('EVENT_RECEIVED');
+
     } catch (error) {
       console.error('Error in processing:', error.response ? JSON.stringify(error.response.data) : error.message);
+      return res.status(200).send('EVENT_RECEIVED');
     }
   } else {
-    res.sendStatus(404);
+    return res.sendStatus(404);
   }
 });
 
