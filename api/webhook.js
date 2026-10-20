@@ -40,13 +40,20 @@ app.post('/api/webhook', async (req, res) => {
 
           console.log(`Received message from ${sender_psid}: ${messageText}`);
 
-          // Call Gemini API directly via REST (using gemini-2.5-flash)
+          // Call Gemini API directly via REST with a 10-second timeout
           const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
           
           console.log("Calling Gemini API...");
-          const geminiResponse = await axios.post(geminiUrl, {
-            contents: [{ parts: [{ text: messageText }] }]
-          });
+          
+          let geminiResponse;
+          try {
+            geminiResponse = await axios.post(geminiUrl, {
+              contents: [{ parts: [{ text: messageText }] }]
+            }, { timeout: 10000 }); // 10 seconds timeout
+          } catch (geminiErr) {
+            console.error("GEMINI API FAILED:", geminiErr.response ? JSON.stringify(geminiErr.response.data) : geminiErr.message);
+            return;
+          }
 
           // Extract response text safely
           const botReply = geminiResponse.data?.candidates?.[0]?.content?.parts?.[0]?.text || "Hello! I received your message.";
